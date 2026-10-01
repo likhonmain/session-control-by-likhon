@@ -1,0 +1,3 @@
+- insert:
+    - id: session-control
+      name: 'dsh-session-control'

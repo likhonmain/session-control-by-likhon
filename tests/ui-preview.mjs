@@ -1,0 +1,10 @@
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { launch, root } from './host.mjs';
+const directory = process.argv[2];
+if (!directory || !path.resolve(directory).startsWith(path.join(root, 'tests', '.runs') + path.sep)) throw new Error('Use a disposable integration run directory.');
+const host = await launch(path.join(directory, 'home'), directory);
+await fs.writeFile(path.join(directory, 'preview.json'), JSON.stringify({ endpoint: host.endpoint, baseURL: host.baseURL }));
+console.log('Disposable UI preview ready.');
+for (const signal of ['SIGINT', 'SIGTERM']) process.on(signal, async () => { await host.stop(); process.exit(0); });
+setInterval(() => {}, 1000);

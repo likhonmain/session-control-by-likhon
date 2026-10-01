@@ -1,0 +1,73 @@
+import assert from 'node:assert/strict';
+import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createHome, launch } from './host.mjs';
+const requests = [];
+const server = http.createServer(async (req, res) => {
+  if (req.method === 'GET') { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify({ data: [{ id: 'sc-test', object: 'model' }] })); return; }
+  let text = ''; for await (const chunk of req) text += chunk;
+  const body = JSON.parse(text); requests.push(body);
+  const last = body.messages.findLast(m => m.role === 'user');
+  const content = 'local answer: ' + (typeof last?.content === 'string' ? last.content : 'attachment');
+  res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+  const event = (delta, finish_reason = null) => res.write('data: ' + JSON.stringify({ id: 'test-' + requests.length, object: 'chat.completion.chunk', created: 1700000000, model: 'sc-test', choices: [{ index: 0, delta, finish_reason }] }) + '\n\n');
+  event({ role: 'assistant', content: '' }); event({ content }); event({}, 'stop');
+  res.end('data: [DONE]\n\n');
+});
+await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+const { home, directory } = await createHome(server.address().port);
+let host;
+try {
+  host = await launch(home, directory);
+  const status = await host.api('/api/session-control/status');
+  assert.equal(status.build, 'sidecar-projection-v2');
+  const sessionId = (await host.api('/api/sc-test/create', {})).value.sessionId;
+  const prompt = text => host.api('/api/sc-test/prompt', { sessionId, text });
+  const info = () => host.api('/api/session-control/info?sessionId=' + encodeURIComponent(sessionId));
+  const mutate = async (action, turn, extra = {}) => {
+    const data = await info();
+    const target = data.turns.find(t => t.turn === turn);
+    return host.api('/api/session-control/mutate', { sessionId, action, startSeq: target.startSeq, expectedRevision: data.state.revision, ...extra });
+  };
+  await prompt('FIRST original input'); await prompt('SECOND untouched input');
+  let data = await info();
+  const firstInput = data.turns[0].userMessages[0].id, firstOutput = data.turns[0].assistantMessages.at(-1).id;
+  const before = (await host.api('/api/sc-test/read', { sessionId })).value.events;
+  await mutate('edit-input', 1, { messageId: firstInput, text: 'FIRST edited input' });
+  await mutate('edit-output', 1, { messageId: firstOutput, text: 'FIRST edited output' });
+  assert.deepEqual((await host.api('/api/sc-test/read', { sessionId })).value.events, before);
+  await prompt('THIRD verify edits');
+  let outgoing = JSON.stringify(requests.at(-1));
+  assert(outgoing.includes('FIRST edited input')); assert(outgoing.includes('FIRST edited output')); assert(!outgoing.includes('FIRST original input'));
+  await mutate('toggle-mute', 1);
+  await prompt('FOURTH verify mute');
+  outgoing = JSON.stringify(requests.at(-1));
+  assert(!outgoing.includes('FIRST edited')); assert(outgoing.includes('SECOND untouched'));
+  assert.equal((await info()).turns[0].muted, true);
+  await mutate('toggle-mute', 1);
+  await mutate('delete-output', 1, { messageId: firstOutput });
+  await prompt('FIFTH verify output deletion');
+  outgoing = JSON.stringify(requests.at(-1));
+  assert(outgoing.includes('FIRST edited input')); assert(!outgoing.includes('FIRST edited output'));
+  await mutate('delete-input', 1, { messageId: firstInput });
+  await prompt('SIXTH verify input deletion');
+  assert(!JSON.stringify(requests.at(-1)).includes('FIRST edited'));
+  await mutate('delete-turn', 2);
+  await prompt('SEVENTH verify turn removal');
+  assert(!JSON.stringify(requests.at(-1)).includes('SECOND untouched'));
+  const saved = await info();
+  await host.stop(); host = await launch(home, directory);
+  const cold = await info();
+  assert.equal(cold.state.revision, saved.state.revision);
+  assert(!cold.turns.some(t => t.turn === 2));
+  await host.api('/api/sc-test/create', { sessionId });
+  await prompt('EIGHTH verify process restart');
+  assert(!JSON.stringify(requests.at(-1)).includes('FIRST edited'));
+  assert(!JSON.stringify(requests.at(-1)).includes('SECOND untouched'));
+  assert(!/duplicate exact route|session event stream resumed|stored log is corrupt/.test(host.logs()));
+  const result = { passed: true, backend: status, features: 6, actualLocalHttpPayloadsChecked: requests.length, coldRestart: true, directory, sessionId };
+  await fs.writeFile(path.join(directory, 'result.json'), JSON.stringify(result, null, 2));
+  console.log(JSON.stringify(result, null, 2));
+} catch (error) { if (host) console.error(host.logs().slice(-8000)); throw error; }
+finally { await host?.stop(); await new Promise(resolve => server.close(resolve)); }

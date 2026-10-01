@@ -1,0 +1,45 @@
+{
+  "name": "dsh-session-control",
+  "version": "2.0.0-local.1",
+  "displayName": "Session Control by Likhon",
+  "description": "Session Control by Likhon: edit input/output, delete input/output, remove turns, and mute turns from API context.",
+  "author": "Tanvir Ahamed Likhon <likhonmain@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/likhonmain/session-control-by-likhon.git"
+  },
+  "bugs": {
+    "url": "https://github.com/likhonmain/session-control-by-likhon/issues"
+  },
+  "homepage": "https://github.com/likhonmain/session-control-by-likhon#readme",
+  "type": "module",
+  "main": "./index.js",
+  "files": ["index.js", "core.js", "state-store.js", "client.js", "client-entry.js", "cordis.patch.yml", "README.md", "tools"],
+  "scripts": {
+    "build": "node tools/build-client.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "install:desktop": "node tools/install-desktop.mjs",
+    "check:startup": "node tools/check-startup.mjs"
+  },
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-chat"
+      ]
+    }
+  },
+  "dependencies": {
+    "katex": "^0.18.10"
+  }
+}
