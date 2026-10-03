@@ -6,13 +6,14 @@ import { modules } from './harness.mjs';
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 export async function createHome(apiPort) {
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'package.json'), 'utf8'));
   const directory = path.join(root, 'tests', '.runs', 'run-' + Date.now());
   const home = path.join(directory, 'home'), profile = path.join(home, 'profiles', 'web');
   await fs.mkdir(path.join(profile, 'node_modules'), { recursive: true });
   await fs.symlink(path.join(modules, '@deepseek-ai'), path.join(profile, 'node_modules', '@deepseek-ai'), 'junction');
   await fs.symlink(root, path.join(profile, 'node_modules', 'dsh-session-control'), 'junction');
   await fs.writeFile(path.join(profile, 'package.json'), JSON.stringify({ name: 'disposable-sc-test', private: true,
-    dependencies: { 'dsh-session-control': '2.0.0-local.1' }, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-session-control'] } } }));
+    dependencies: { 'dsh-session-control': manifest.version }, dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-session-control'] } } }));
   const driver = pathToFileURL(path.join(root, 'tests/driver/index.js')).href;
   await fs.writeFile(path.join(profile, 'cordis.patch.yml'), `
 - id: llm-pi-ai

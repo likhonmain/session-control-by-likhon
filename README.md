@@ -29,6 +29,7 @@ Earlier approaches that attempted to rewrite DSH's raw session files (`session.v
 | Feature | Action | Description |
 |---|---|---|
 | **✏️ Edit Output** | `Edit output` | Edit any previous assistant output. Updates both the web view and future LLM context payloads. |
+| **Word copy** | `Word copy` | Selects and copies the final rendered output using the browser's native rich copy, like mouse selection followed by Ctrl+C. Paste into Microsoft Word with **Keep Source Formatting** to preserve headings, bold text, lists, and rendered equations. |
 | **✏️ Edit Input** | `Edit input` | Edit any earlier user prompt. Future model responses treat the prompt as if originally typed that way. |
 | **🗑️ Delete Output** | `Delete output` | Clears the assistant response for the turn while keeping the user prompt and tool protocol intact. |
 | **🗑️ Delete Input** | `Delete input` | Removes a specific user prompt from model context. |

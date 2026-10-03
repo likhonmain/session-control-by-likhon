@@ -1,6 +1,6 @@
 {
   "name": "dsh-session-control",
-  "version": "2.0.0-local.1",
+  "version": "2.1.0-local.1",
   "displayName": "Session Control by Likhon",
   "description": "Session Control by Likhon: edit input/output, delete input/output, remove turns, and mute turns from API context.",
   "author": "Tanvir Ahamed Likhon <likhonmain@gmail.com>",

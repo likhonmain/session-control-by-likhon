@@ -84,6 +84,31 @@ window.__ModuleLoader__.load({
       const result = await request('mutate', { sessionId: id, action, startSeq: turn.startSeq, expectedRevision: data.state.revision, ...extra });
       resource(id).set(result);
     }
+    function copyForWord(button, turnNumber) {
+      // These are Harness's semantic chat attributes, scoped to this chat view.
+      // Copy the final rendered answer, never the turn tail or a reasoning group.
+      const flow = button.closest('[data-chat-flow]');
+      const answers = [...(flow?.querySelectorAll('[data-chat-flow-kind="assistant-step"][data-chat-turn]') || [])]
+        .filter(node => node.dataset.chatTurn === String(turnNumber)
+          && node.dataset.chatGroupPart !== 'reasoning'
+          && !node.closest('[hidden], [data-step-process-content]')
+          && node.getClientRects().length > 0);
+      const answer = answers.at(-1);
+      if (!answer || (!answer.textContent.trim() && !answer.querySelector('img'))) {
+        throw new Error('No rendered output remains to copy in this turn.');
+      }
+      const selection = window.getSelection();
+      if (!selection) throw new Error('The browser cannot select this output.');
+      const range = document.createRange();
+      range.selectNodeContents(answer);
+      selection.removeAllRanges();
+      selection.addRange(range);
+      // Native copy generates the same rich HTML/MathML clipboard as mouse
+      // selection + Ctrl+C. Writing just text/markdown loses Word formatting.
+      if (!document.execCommand('copy')) {
+        throw new Error('Automatic copy was blocked. The output is selected; press Ctrl+C to copy it.');
+      }
+    }
     function TurnActions(props) {
       const id = props.sessionId || props.session?.id;
       const turnNumber = typeof props.turn === 'number' ? props.turn : props.turn?.turn;
@@ -95,6 +120,12 @@ window.__ModuleLoader__.load({
       const data = useSyncExternalStore(value.subscribe, value.snapshot);
       const [error, setError] = useState('');
       const [busy, setBusy] = useState(false);
+      const [copied, setCopied] = useState(false);
+      useEffect(() => {
+        if (!copied) return;
+        const timeout = setTimeout(() => setCopied(false), 2000);
+        return () => clearTimeout(timeout);
+      }, [copied]);
       const turn = data.turns?.find(t => t.turn === turnNumber);
       if (!turn) return data.error ? h('div', { className: 'sc-error' }, DISPLAY_NAME + ': ' + data.error) : null;
       const disabled = busy || data.busy || turn.endSeq === null;
@@ -122,7 +153,16 @@ window.__ModuleLoader__.load({
             key: action, type: 'button', disabled, onClick: () => act(action),
             className: action === 'toggle-mute' && turn.muted ? 'sc-muted' : undefined,
             title: action === 'toggle-mute' ? 'Keep this turn visible and exclude it from future API payloads; unmute to restore.' : label
-          }, label)), h('span', { className: 'sc-title' }, turn.muted ? 'Ghosted · excluded from API context' : DISPLAY_NAME)),
+          }, label)), h('button', {
+            type: 'button', disabled,
+            title: 'Copy the rendered output with formatting for Microsoft Word, like selecting it and pressing Ctrl+C.',
+            onClick: event => {
+              setError(''); setCopied(false);
+              try { copyForWord(event.currentTarget, turnNumber); setCopied(true); }
+              catch (err) { setError(err.message); }
+            }
+          }, copied ? 'Copied for Word' : 'Word copy'),
+          h('span', { className: 'sc-title' }, turn.muted ? 'Ghosted · excluded from API context' : DISPLAY_NAME)),
         (error || data.error) && h('div', { role: 'alert', className: 'sc-error' }, error || data.error));
     }
     function Overlay() {
