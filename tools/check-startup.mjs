@@ -2,6 +2,9 @@ import { spawn } from 'node:child_process';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 
+const expectedPackage = JSON.parse(await fs.readFile(new URL('../package.json', import.meta.url), 'utf8'));
+const expectedBuild = 'sidecar-projection-v2';
+
 const modules = path.join(process.env.LOCALAPPDATA, 'Programs', 'DSH Desktop',
   'resources', 'app.asar.unpacked', 'node_modules');
 const home = path.join(process.env.APPDATA, 'dsh-desktop', 'harness');
@@ -44,8 +47,8 @@ try {
     return response;
   };
   const status = await (await get('/api/session-control/status')).json();
-  if (status.version !== '1.0.2-local.1' || status.build !== 'local-conversation-controls') {
-    throw new Error('The intended local build was not loaded.');
+  if (status.plugin !== expectedPackage.name || status.version !== expectedPackage.version || status.build !== expectedBuild) {
+    throw new Error(`Expected ${expectedPackage.name}@${expectedPackage.version} (${expectedBuild}), but loaded ${status.plugin}@${status.version} (${status.build}).`);
   }
   const html = await (await get('/')).text();
   if (!html.includes('dsh-session-control')) throw new Error('Client module is absent from the page module graph.');

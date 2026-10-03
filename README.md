@@ -71,17 +71,22 @@ session-control-by-likhon/
    cd session-control-by-likhon
    ```
 
-2. Build the client bundle:
+2. Install the required dependencies (creates the `node_modules` folder needed by the installer):
+   ```bash
+   npm install
+   ```
+
+3. Build the client bundle:
    ```bash
    npm run build
    ```
 
-3. Run the automated test suite:
+4. Run the automated test suite:
    ```bash
    npm test
    ```
 
-4. Install into your local DSH Desktop profile:
+5. Install into your local DSH Desktop profile:
    ```bash
    npm run install:desktop
    ```
